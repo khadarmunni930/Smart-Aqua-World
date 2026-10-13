@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Aqua World — AquIntel Command Center</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{
+ --bg:#06111b;--bg2:#091b29;--panel:#0d2232;--panel2:#102b3e;
+ --line:rgba(255,255,255,.10);--text:#edf9ff;--muted:#8fa7b9;
+ --cyan:#00e5ff;--blue:#2687ff;--green:#27d17f;--yellow:#ffc857;--red:#ff5d6c;
+ --shadow:0 18px 55px rgba(0,0,0,.25)
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body{overflow-x:hidden}
+body:before{content:"";position:fixed;inset:-20%;z-index:-3;pointer-events:none;background:radial-gradient(circle at 15% 20%,rgba(0,229,255,.10),transparent 24%),radial-gradient(circle at 85% 25%,rgba(38,135,255,.11),transparent 25%),radial-gradient(circle at 55% 85%,rgba(0,190,180,.07),transparent 28%);animation:ambientDrift 16s ease-in-out infinite alternate}
+@keyframes ambientDrift{0%{transform:translate3d(-2%,0,0) scale(1)}50%{transform:translate3d(2%,-1%,0) scale(1.04)}100%{transform:translate3d(-1%,2%,0) scale(1.02)}}
+.ambient-bg{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden;background:linear-gradient(180deg,rgba(3,14,23,.12),rgba(3,14,23,.32))}
+.ambient-orb{position:absolute;border-radius:50%;filter:blur(2px);opacity:.28;animation:orbFloat 10s ease-in-out infinite}
+.ambient-orb.o1{width:230px;height:230px;left:12%;top:18%;background:radial-gradient(circle,rgba(0,229,255,.24),transparent 68%)}
+.ambient-orb.o2{width:300px;height:300px;right:7%;top:50%;background:radial-gradient(circle,rgba(38,135,255,.18),transparent 70%);animation-delay:-4s}
+.ambient-orb.o3{width:180px;height:180px;left:45%;bottom:3%;background:radial-gradient(circle,rgba(39,209,127,.12),transparent 70%);animation-delay:-7s}
+@keyframes orbFloat{0%,100%{transform:translate(0,0) scale(1);opacity:.20}50%{transform:translate(20px,-18px) scale(1.08);opacity:.38}}
+.ambient-particle{position:absolute;width:3px;height:3px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);opacity:.45;animation:particleRise linear infinite}
+@keyframes particleRise{from{transform:translateY(20vh);opacity:0}15%{opacity:.45}85%{opacity:.25}to{transform:translateY(-120vh);opacity:0}}
+.search-wrap{position:relative;width:min(360px,34vw)}
+.search-input{width:100%;height:38px;padding:0 13px 0 38px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.045);color:#fff;outline:none;transition:.2s}
+.search-input:focus{border-color:rgba(0,229,255,.45);box-shadow:0 0 0 3px rgba(0,229,255,.06),0 0 22px rgba(0,229,255,.10)}
+.search-icon{position:absolute;left:13px;top:10px;color:#7591a3;font-size:14px;pointer-events:none}
+.search-results{display:none;position:absolute;top:45px;left:0;right:0;background:#0a1c2a;border:1px solid rgba(0,229,255,.18);border-radius:12px;box-shadow:0 18px 45px rgba(0,0,0,.35);overflow:hidden;z-index:200}
+.search-results.show{display:block;animation:dropIn .18s ease}
+.search-result{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;color:#dffaff;text-align:left;padding:11px 13px;cursor:pointer}
+.search-result:hover{background:rgba(0,229,255,.08)}
+.search-result small{margin-left:auto;color:#66879a}
+@keyframes dropIn{from{opacity:0;transform:translateY(-5px) scale(.98)}to{opacity:1;transform:none}}
+.page.active{display:block;animation:pageIn .42s cubic-bezier(.2,.8,.2,1)}
+@keyframes pageIn{0%{opacity:0;transform:translateY(13px) scale(.985);filter:brightness(.75)}60%{opacity:1;transform:translateY(-2px) scale(1.002);filter:brightness(1.08)}100%{opacity:1;transform:none;filter:none}}
+.page.interaction-shake{animation:interactionShake .34s ease both}
+@keyframes interactionShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px) rotate(-.15deg)}40%{transform:translateX(4px) rotate(.15deg)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+.card.interaction-shake,.chart-card.interaction-shake{animation:cardShake .3s ease both}
+@keyframes cardShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}50%{transform:translateX(3px)}75%{transform:translateX(-2px)}}
+.metric.updated{animation:metricPulse .7s ease}
+@keyframes metricPulse{0%{box-shadow:var(--shadow);filter:brightness(1)}35%{box-shadow:0 0 0 2px rgba(0,229,255,.12),0 0 28px rgba(0,229,255,.18);filter:brightness(1.12)}100%{box-shadow:var(--shadow);filter:brightness(1)}}
+.feature-card{position:relative;overflow:hidden}
+.feature-card:after{content:"";position:absolute;inset:-80%;background:linear-gradient(115deg,transparent 42%,rgba(0,229,255,.10) 50%,transparent 58%);transform:translateX(-55%) rotate(8deg);transition:.55s;pointer-events:none}
+.feature-card:hover:after{transform:translateX(55%) rotate(8deg)}
+/* Touch / click feedback: existing UI elements shake + blink when touched. No new feature blocks are added. */
+.touch-shake{animation:touchShake .34s cubic-bezier(.36,.07,.19,.97) both!important}
+.touch-blink{animation:touchBlink .5s ease both!important}
+.touch-glow{animation:touchGlow .52s ease both!important}
+@keyframes touchShake{0%,100%{transform:translate3d(0,0,0) rotate(0)}20%{transform:translate3d(-5px,0,0) rotate(-.45deg)}40%{transform:translate3d(5px,0,0) rotate(.45deg)}60%{transform:translate3d(-3px,0,0) rotate(-.2deg)}80%{transform:translate3d(2px,0,0) rotate(.12deg)}}
+@keyframes touchBlink{0%{opacity:1;text-shadow:0 0 0 transparent;filter:brightness(1)}25%{opacity:.35;text-shadow:0 0 18px var(--cyan);filter:brightness(1.55)}50%{opacity:1;text-shadow:0 0 22px rgba(0,229,255,.72);filter:brightness(1.35)}75%{opacity:.5;text-shadow:0 0 12px rgba(0,229,255,.55)}100%{opacity:1;text-shadow:0 0 0 transparent;filter:brightness(1)}}
+@keyframes touchGlow{0%,100%{box-shadow:inherit;filter:brightness(1)}35%{box-shadow:0 0 0 1px rgba(0,229,255,.34),0 0 28px rgba(0,229,255,.18);filter:brightness(1.10)}60%{box-shadow:0 0 0 1px rgba(0,229,255,.18),0 0 18px rgba(0,229,255,.10);filter:brightness(1.04)}}
+.fx-target{cursor:pointer}
+.nav-item:hover,.feature-card:hover,.stage:hover,.metric:hover,.pin:hover,.alert:hover{box-shadow:0 0 0 1px rgba(0,229,255,.08),0 0 26px rgba(0,229,255,.06)}
+.stage{cursor:pointer;transition:.18s;position:relative;overflow:hidden}
+.stage:hover{transform:translateY(-2px);border-color:rgba(0,229,255,.32)}
+.stage:active{transform:scale(.98)}
+.btn:active,.icon-btn:active,.nav-item:active{transform:scale(.97)}
+.ai-scan{position:relative;overflow:hidden}
+.ai-scan:after{content:"";position:absolute;left:0;right:0;height:2px;top:-5px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);box-shadow:0 0 16px var(--cyan);animation:scanLine 1.1s linear infinite}
+@keyframes scanLine{to{top:105%}}
+.pulse-alert{animation:alertPulse 1s ease 2}
+@keyframes alertPulse{50%{border-color:rgba(255,93,108,.45);box-shadow:0 0 28px rgba(255,93,108,.10)}}
+@media(max-width:900px){.search-wrap{width:220px}}
+@media(max-width:650px){.search-wrap{width:150px}.search-input{font-size:11px}.search-input::placeholder{color:transparent}}
+button,input,select{font:inherit}
+button{cursor:pointer}
+a{text-decoration:none;color:inherit}
+
+.app{display:flex;min-height:100vh}
+.sidebar{
+ width:250px;position:fixed;left:0;top:0;bottom:0;z-index:100;
+ background:rgba(5,17,28,.96);border-right:1px solid var(--line);
+ display:flex;flex-direction:column;padding:22px 14px;backdrop-filter:blur(20px)
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 25px}
+.brand-icon{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:grid;place-items:center;font-size:21px;box-shadow:0 0 25px rgba(0,229,255,.22)}
+.brand b{font-size:20px}.brand small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.nav-title{font-size:10px;color:#587184;font-weight:800;letter-spacing:1.4px;padding:14px 12px 7px}
+.nav-item{
+ width:100%;border:0;background:transparent;color:#91a8b9;text-align:left;
+ padding:12px 13px;border-radius:12px;display:flex;align-items:center;gap:11px;
+ margin:2px 0;font-weight:650;transition:.2s
+}
+.nav-item:hover{background:rgba(0,229,255,.07);color:#dffaff}
+.nav-item.active{background:linear-gradient(90deg,rgba(0,229,255,.16),rgba(38,135,255,.08));color:#fff;border:1px solid rgba(0,229,255,.14)}
+.nav-item .count{margin-left:auto;font-size:10px;background:#17394c;padding:3px 7px;border-radius:8px;color:#9ec2d5}
+.sidebar-bottom{margin-top:auto}
+.system-mini{border:1px solid var(--line);background:rgba(255,255,255,.03);padding:13px;border-radius:14px;margin:8px 3px}
+.system-mini div{display:flex;justify-content:space-between;font-size:11px;margin:6px 0;color:var(--muted)}
+.green{color:var(--green)!important}.yellow{color:var(--yellow)!important}.red{color:var(--red)!important}.cyan{color:var(--cyan)!important}
+
+.main{margin-left:250px;width:calc(100% - 250px);min-width:0}
+.topbar{
+ height:72px;position:sticky;top:0;z-index:80;display:flex;align-items:center;
+ justify-content:space-between;padding:0 30px;background:rgba(6,17,27,.86);
+ border-bottom:1px solid var(--line);backdrop-filter:blur(18px)
+}
+.breadcrumb{color:var(--muted);font-size:12px}.top-actions{display:flex;align-items:center;gap:10px}
+.live-pill{display:flex;gap:7px;align-items:center;border:1px solid rgba(39,209,127,.2);background:rgba(39,209,127,.08);padding:7px 11px;border-radius:20px;font-size:11px;color:#b8f1d5}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 1.5s infinite}
+@keyframes pulse{50%{opacity:.4;transform:scale(.75)}}
+.icon-btn{width:38px;height:38px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:#d8eaf3;border-radius:11px}
+.user{display:flex;align-items:center;gap:9px;padding-left:8px}.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#155f9a,#00a9bd);font-weight:800}
+
+.page{display:none;padding:30px;max-width:1700px;margin:auto}.page.active{display:block;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.page-head{display:flex;justify-content:space-between;align-items:end;gap:18px;margin-bottom:24px}
+.page-head h1{font-size:32px;line-height:1.1}.page-head p{color:var(--muted);margin-top:7px;font-size:14px}
+.actions{display:flex;gap:9px;flex-wrap:wrap}
+.btn{border:0;border-radius:10px;padding:10px 16px;color:white;font-weight:800;background:linear-gradient(90deg,var(--blue),var(--cyan));box-shadow:0 10px 25px rgba(0,180,255,.18)}
+.btn.secondary{background:rgba(255,255,255,.05);border:1px solid var(--line);box-shadow:none}
+.btn.danger{background:rgba(255,93,108,.12);border:1px solid rgba(255,93,108,.25);box-shadow:none;color:#ffb4bc}
+.card{background:linear-gradient(145deg,rgba(15,37,54,.95),rgba(9,28,42,.9));border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.two{display:grid;grid-template-columns:1.45fr .75fr;gap:14px}
+.metric{position:relative;overflow:hidden}.metric:before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+.metric-label{color:var(--muted);font-size:12px}.metric-value{font-size:29px;font-weight:850;margin:7px 0}.metric-sub{font-size:11px}
+.section-label{font-size:12px;color:#718b9d;text-transform:uppercase;letter-spacing:1px;font-weight:800;margin-bottom:13px}
+.chart-box{height:300px}.chart-box.small{height:230px}
+.status-line{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}
+.status-big{font-size:25px;font-weight:850}.badge{padding:5px 8px;border-radius:8px;font-size:10px;font-weight:850}
+.badge.green{background:rgba(39,209,127,.12);color:var(--green)}.badge.yellow{background:rgba(255,200,87,.12);color:var(--yellow)}.badge.red{background:rgba(255,93,108,.12);color:var(--red)}.badge.blue{background:rgba(0,229,255,.1);color:var(--cyan)}
+.progress{height:7px;border-radius:10px;background:#1c3444;overflow:hidden;margin:9px 0 5px}.progress i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--cyan));border-radius:10px}
+.small{font-size:11px;color:var(--muted)}
+.list{list-style:none;display:grid;gap:9px}.list li{padding:11px 12px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.025);border-radius:10px;font-size:13px;color:#c8d8e3}
+.list li b{color:#fff}
+.hero-card{padding:34px;border-radius:20px;background:linear-gradient(120deg,rgba(0,107,150,.18),rgba(38,135,255,.08));border:1px solid rgba(0,229,255,.12);margin-bottom:18px}
+.hero-card h2{font-size:38px;max-width:800px}.hero-card p{color:#a9c0cf;max-width:780px;margin:12px 0 20px}
+.home-actions{display:flex;gap:10px;flex-wrap:wrap}
+.feature-card{cursor:pointer;transition:.2s}.feature-card:hover{transform:translateY(-3px);border-color:rgba(0,229,255,.3)}
+.feature-icon{font-size:25px;margin-bottom:12px}.feature-card h3{font-size:16px;margin-bottom:5px}.feature-card p{font-size:12px;color:var(--muted)}
+.score-wrap{display:flex;align-items:center;gap:22px}.score-circle{width:125px;height:125px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--cyan) 92%,#173545 0);flex:none}.score-inner{width:96px;height:96px;border-radius:50%;background:#0a1c2a;display:grid;place-items:center;font-size:28px;font-weight:850}
+.pipeline{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}.stage{min-width:125px;text-align:center;border:1px solid var(--line);background:rgba(255,255,255,.025);padding:15px 10px;border-radius:12px}.arrow{color:var(--cyan);font-size:20px}
+.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:12px;text-align:left;border-bottom:1px solid var(--line);font-size:12px}.table th{color:var(--muted)}
+.alert{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:9px;background:rgba(255,255,255,.025)}
+.alert-icon{font-size:20px}.alert b{font-size:13px}.alert p{color:var(--muted);font-size:11px;margin-top:3px}
+.map{height:430px;position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--line);background:
+ radial-gradient(circle at 25% 35%,rgba(0,229,255,.12) 0 2%,transparent 2.5%),
+ radial-gradient(circle at 68% 25%,rgba(0,229,255,.1) 0 2%,transparent 2.5%),
+ linear-gradient(135deg,#0b2639,#06121d)}
+.map:before{content:"";position:absolute;inset:7%;border:1px dashed rgba(0,229,255,.13);border-radius:35% 55% 42% 60%;transform:rotate(-12deg)}.map:after{content:"";position:absolute;inset:25%;border:1px solid rgba(255,255,255,.05);border-radius:45%;transform:rotate(18deg)}
+.pin{position:absolute;padding:7px 9px;background:#081a28;border:1px solid var(--line);border-radius:9px;font-size:10px;z-index:2;box-shadow:0 7px 20px #0005}.pin:hover{border-color:var(--cyan)}
+.p1{left:15%;top:25%}.p2{left:64%;top:21%}.p3{left:40%;top:65%}.p4{left:77%;top:68%}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.field{display:grid;gap:6px}.field label{font-size:11px;color:var(--muted)}.field input,.field select{width:100%;padding:11px 12px;background:#081a28;color:#fff;border:1px solid var(--line);border-radius:9px;outline:none}.field input:focus,.field select:focus{border-color:var(--cyan)}
+.range-row{display:grid;grid-template-columns:1fr 75px;gap:12px;align-items:center}.range-row input[type=range]{width:100%;accent-color:var(--cyan)}.range-val{padding:9px;background:#081a28;border:1px solid var(--line);border-radius:8px;text-align:center;font-weight:800}
+.toggle{width:48px;height:26px;border:0;border-radius:20px;background:#294052;position:relative}.toggle:after{content:"";position:absolute;width:20px;height:20px;top:3px;left:4px;border-radius:50%;background:white;transition:.2s}.toggle.on{background:var(--blue)}.toggle.on:after{left:24px}
+.setting-row{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:14px 0;border-bottom:1px solid var(--line)}.setting-row:last-child{border-bottom:0}
+.footer{padding:28px 30px;color:#61798a;text-align:center;font-size:11px;border-top:1px solid var(--line);margin-top:20px}
+.toast{position:fixed;right:22px;bottom:22px;z-index:200;background:#102b3d;border:1px solid var(--cyan);padding:13px 16px;border-radius:11px;display:none;box-shadow:var(--shadow);font-size:12px}
+
+@media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}.grid5{grid-template-columns:repeat(3,1fr)}.two{grid-template-columns:1fr}}
+@media(max-width:900px){
+ .sidebar{width:74px;padding:18px 8px}.brand{justify-content:center;padding:5px 0 22px}.brand>div:last-child,.nav-title,.nav-item span:not(.count),.system-mini{display:none}.nav-item{justify-content:center}.nav-item .count{display:none}.main{margin-left:74px;width:calc(100% - 74px)}.topbar{padding:0 18px}.grid,.grid3,.grid5{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:600px){
+ .sidebar{width:0;padding:0;border:0;overflow:hidden}.main{margin-left:0;width:100%}.topbar{padding:0 12px}.user{display:none}.page{padding:20px 13px}.page-head{display:block}.actions{margin-top:13px}.grid,.grid3,.grid5,.form-grid{grid-template-columns:1fr}.hero-card h2{font-size:29px}.score-wrap{display:block}.score-circle{margin:15px auto}.pipeline{flex-direction:column}.arrow{transform:rotate(90deg)}.chart-box{height:260px}
+}
+</style>
+</head>
+<body>
+<div class="ambient-bg" aria-hidden="true">
+  <div class="ambient-orb o1"></div><div class="ambient-orb o2"></div><div class="ambient-orb o3"></div>
+  <span class="ambient-particle" style="left:8%;animation-duration:13s;animation-delay:-2s"></span>
+  <span class="ambient-particle" style="left:19%;animation-duration:17s;animation-delay:-9s"></span>
+  <span class="ambient-particle" style="left:34%;animation-duration:14s;animation-delay:-5s"></span>
+  <span class="ambient-particle" style="left:51%;animation-duration:19s;animation-delay:-13s"></span>
+  <span class="ambient-particle" style="left:67%;animation-duration:15s;animation-delay:-7s"></span>
+  <span class="ambient-particle" style="left:82%;animation-duration:18s;animation-delay:-11s"></span>
+  <span class="ambient-particle" style="left:94%;animation-duration:12s;animation-delay:-4s"></span>
+</div>
+<div class="app">
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-icon">💧</div>
+    <div><b>AquIntel</b><small>SMART AQUA WORLD</small></div>
+  </div>
+
+  <div class="nav-title">MAIN</div>
+  <button class="nav-item active" data-page="home">🏠 <span>Overview</span></button>
+  <button class="nav-item" data-page="dashboard">📊 <span>Live Dashboard</span></button>
+  <button class="nav-item" data-page="ai">🤖 <span>AI Intelligence</span></button>
+
+  <div class="nav-title">WATER SYSTEM</div>
+  <button class="nav-item" data-page="purification">🧪 <span>Purification</span></button>
+  <button class="nav-item" data-page="history">📈 <span>Historical Data</span></button>
+  <button class="nav-item" data-page="alerts">🚨 <span>Alerts</span><span class="count" id="alertCount">2</span></button>
+  <button class="nav-item" data-page="map">🗺️ <span>Water Sources</span></button>
+
+  <div class="nav-title">MANAGEMENT</div>
+  <button class="nav-item" data-page="maintenance">🔧 <span>Maintenance</span></button>
+  <button class="nav-item" data-page="settings">⚙️ <span>System Settings</span></button>
+
+  <div class="sidebar-bottom">
+    <div class="system-mini">
+      <div><span>IoT Sensors</span><b class="green">ONLINE</b></div>
+      <div><span>AI Engine</span><b class="green">READY</b></div>
+      <div><span>Cloud</span><b class="green">SYNC</b></div>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+<header class="topbar">
+  <div class="breadcrumb" id="breadcrumb">Smart Aqua World / Overview</div>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input id="globalSearch" class="search-input" placeholder="Search features..." autocomplete="off">
+    <div id="searchResults" class="search-results"></div>
+  </div>
+  <div class="top-actions">
+    <div class="live-pill"><i class="live-dot"></i> LIVE SYSTEM</div>
+    <button class="icon-btn" onclick="showToast('No new system notifications')">🔔</button>
+    <div class="user"><div class="avatar">A</div><span class="small">Admin</span></div>
+  </div>
+</header>
+
+<!-- HOME -->
+<section class="page active" id="page-home">
+  <div class="hero-card">
+    <div class="section-label">AI + IoT WATER MANAGEMENT PLATFORM</div>
+    <h2>Smart Aqua World — from <span class="cyan">monitoring</span> to intelligent purification.</h2>
+    <p>One control center for water quality, AI analysis, predictive alerts, purification, source monitoring and maintenance. Built as a working demo for a national-level hackathon.</p>
+    <div class="home-actions">
+      <button class="btn" onclick="openPage('dashboard')">Open Live Dashboard →</button>
+      <button class="btn secondary" onclick="openPage('settings')">Configure System</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card feature-card" onclick="openPage('dashboard')"><div class="feature-icon">📡</div><h3>Live Monitoring</h3><p>Real-time water parameters and system status.</p></div>
+    <div class="card feature-card" onclick="openPage('ai')"><div class="feature-icon">🤖</div><h3>AI Intelligence</h3><p>Anomaly detection, score and water-quality insights.</p></div>
+    <div class="card feature-card" onclick="openPage('purification')"><div class="feature-icon">🧪</div><h3>Smart Purification</h3><p>Track filters, RO/UF, UV and treatment status.</p></div>
+    <div class="card feature-card" onclick="openPage('alerts')"><div class="feature-icon">🚨</div><h3>Predictive Alerts</h3><p>Warnings and critical events before they become bigger problems.</p></div>
+  </div>
+
+  <div style="height:14px"></div>
+  <div class="grid3">
+    <div class="card">
+      <div class="section-label">CURRENT STATUS</div>
+      <div class="status-big green" id="homeStatus">SAFE</div>
+      <p class="small">Overall water quality status</p>
+    </div>
+    <div class="card">
+      <div class="section-label">QUALITY SCORE</div>
+      <div class="status-big cyan" id="homeScore">92 / 100</div>
+      <p class="small">Calculated from configured parameters</p>
+    </div>
+    <div class="card">
+      <div class="section-label">SYSTEM HEALTH</div>
+      <div class="status-big green">98%</div>
+      <p class="small">Sensors, cloud, AI and treatment systems</p>
+    </div>
+  </div>
+</section>
+
+<!-- DASHBOARD -->
+<section class="page" id="page-dashboard">
+  <div class="page-head"><div><h1>📊 Live Dashboard</h1><p>Real-time simulated IoT readings — every value can be configured in System Settings.</p></div><div class="actions"><button class="btn secondary" onclick="toggleDemo()">Demo Mode: <b id="demoText">ON</b></button><button class="btn" onclick="refreshData()">↻ Refresh</button></div></div>
+  <div class="grid">
+    <div class="card metric"><div class="metric-label">pH</div><div class="metric-value" id="v-ph">7.2</div><div class="metric-sub green">● Normal</div></div>
+    <div class="card metric"><div class="metric-label">TDS</div><div class="metric-value" id="v-tds">310 ppm</div><div class="metric-sub green">● Normal</div></div>
+    <div class="card metric"><div class="metric-label">Turbidity</div><div class="metric-value" id="v-turb">2.4 NTU</div><div class="metric-sub green">● Good</div></div>
+    <div class="card metric"><div class="metric-label">Temperature</div><div class="metric-value" id="v-temp">26.4 °C</div><div class="metric-sub green">● Normal</div></div>
+    <div class="card metric"><div class="metric-label">Dissolved Oxygen</div><div class="metric-value" id="v-do">6.8 mg/L</div><div class="metric-sub green">● Good</div></div>
+    <div class="card metric"><div class="metric-label">Water Level</div><div class="metric-value" id="v-level">78%</div><div class="metric-sub green">● Normal</div></div>
+    <div class="card metric"><div class="metric-label">Flow Rate</div><div class="metric-value" id="v-flow">4.2 L/min</div><div class="metric-sub green">● Normal</div></div>
+    <div class="card metric"><div class="metric-label">Water Usage</div><div class="metric-value" id="v-usage">1,248 L</div><div class="metric-sub cyan">● Today</div></div>
+  </div>
+  <div style="height:14px"></div>
+  <div class="two">
+    <div class="card"><div class="status-line"><div><div class="section-label">LIVE SENSOR TREND</div><h3 id="chartTitle">pH Trend</h3></div><select id="chartMetric" onchange="changeChart()" class="fieldInput"><option value="ph">pH</option><option value="tds">TDS</option><option value="turb">Turbidity</option><option value="temp">Temperature</option><option value="do">Dissolved Oxygen</option></select></div><div class="chart-box"><canvas id="liveChart"></canvas></div></div>
+    <div class="card"><div class="section-label">OVERALL WATER STATUS</div><div class="status-big green" id="dashStatus">SAFE</div><p class="small" id="statusReason">All configured parameters are within the selected operating limits.</p><div style="height:20px"></div><div class="section-label">QUALITY SCORE</div><div class="score-wrap"><div class="score-circle" id="dashScoreRing"><div class="score-inner" id="dashScore">92</div></div><div><h3>Water Quality</h3><p class="small">The score updates when sensor values change.</p></div></div></div>
+  </div>
+</section>
+
+<!-- AI -->
+<section class="page" id="page-ai">
+  <div class="page-head"><div><h1>🤖 AI Water Intelligence</h1><p>Explainable insights from current sensor values and configured thresholds.</p></div><button class="btn" onclick="runAI()">✨ Run AI Analysis</button></div>
+  <div class="two">
+    <div class="card"><div class="section-label">AI ANALYSIS</div><h2 id="aiHeadline">Water quality is currently stable.</h2><p id="aiBody" style="color:#a9bfce;margin-top:10px">No critical anomaly detected. The AI engine is continuously comparing live readings against your configured limits and recent trend.</p><div style="height:16px"></div><div class="grid3"><div><span class="small">Risk Level</span><h3 id="aiRisk" class="green">LOW</h3></div><div><span class="small">Confidence</span><h3 id="aiConfidence">94%</h3></div><div><span class="small">Anomalies</span><h3 id="aiAnomaly">0</h3></div></div></div>
+    <div class="card"><div class="section-label">SMART INSIGHTS</div><ul class="list" id="insights"><li>✓ pH is within configured range</li><li>✓ TDS is within configured range</li><li>✓ Turbidity is currently acceptable</li><li>✓ No critical purification action required</li></ul></div>
+  </div>
+  <div style="height:14px"></div>
+  <div class="card"><div class="section-label">QUALITY FORECAST</div><div class="chart-box"><canvas id="forecastChart"></canvas></div><p class="small">Forecast values are demo estimates for the prototype and are not a laboratory certification.</p></div>
+</section>
+
+<!-- PURIFICATION -->
+<section class="page" id="page-purification">
+  <div class="page-head"><div><h1>🧪 Smart Purification</h1><p>Control and monitor the treatment pipeline.</p></div><div class="actions"><span class="badge green" id="purStatus">AUTO MODE ACTIVE</span><button class="btn secondary" onclick="togglePurification()">Toggle Auto Purification</button></div></div>
+  <div class="card"><div class="section-label">TREATMENT PIPELINE</div><div class="pipeline">
+    <div class="stage">💧<br><b>Source</b><br><span class="small">INPUT</span></div><span class="arrow">→</span>
+    <div class="stage">🧹<br><b>Sediment</b><br><span class="small">ACTIVE</span></div><span class="arrow">→</span>
+    <div class="stage">⚫<br><b>Carbon</b><br><span class="small">ACTIVE</span></div><span class="arrow">→</span>
+    <div class="stage">🔬<br><b>RO / UF</b><br><span class="small">READY</span></div><span class="arrow">→</span>
+    <div class="stage">☀️<br><b>UV</b><br><span class="small">ACTIVE</span></div><span class="arrow">→</span>
+    <div class="stage">✅<br><b>Final Check</b><br><span class="small">VERIFY</span></div>
+  </div></div>
+  <div style="height:14px"></div>
+  <div class="grid5" id="filterCards"></div>
+  <div style="height:14px"></div>
+  <div class="card"><div class="section-label">PURIFICATION LOG</div><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Stage</th><th>Event</th><th>Status</th></tr></thead><tbody id="purLog"></tbody></table></div></div>
+</section>
+
+<!-- HISTORY -->
+<section class="page" id="page-history">
+  <div class="page-head"><div><h1>📈 Historical Data</h1><p>Review trends, averages and operating history.</p></div><select id="historyRange" class="fieldInput" onchange="renderHistory()"><option>Today</option><option>7 Days</option><option>30 Days</option><option>90 Days</option></select></div>
+  <div class="grid3">
+    <div class="card"><span class="small">Average pH</span><h2 id="avgPh">7.2</h2><span class="green small">Stable trend</span></div>
+    <div class="card"><span class="small">Average TDS</span><h2 id="avgTds">314 ppm</h2><span class="green small">Normal trend</span></div>
+    <div class="card"><span class="small">Average Turbidity</span><h2 id="avgTurb">2.8 NTU</h2><span class="green small">Good trend</span></div>
+  </div>
+  <div style="height:14px"></div>
+  <div class="two"><div class="card"><div class="section-label">QUALITY TREND</div><div class="chart-box"><canvas id="historyChart"></canvas></div></div><div class="card"><div class="section-label">WATER USAGE</div><div class="chart-box"><canvas id="usageChart"></canvas></div></div></div>
+</section>
+
+<!-- ALERTS -->
+<section class="page" id="page-alerts">
+  <div class="page-head"><div><h1>🚨 Alerts Center</h1><p>Every warning, critical event and resolved notification in one place.</p></div><div class="actions"><button class="btn secondary" onclick="clearAlerts()">Clear Resolved</button><button class="btn" onclick="simulateAlert()">＋ Simulate Alert</button></div></div>
+  <div class="grid3" style="margin-bottom:14px"><div class="card"><span class="small">Critical</span><h2 class="red" id="criticalCount">0</h2></div><div class="card"><span class="small">Warnings</span><h2 class="yellow" id="warningCount">1</h2></div><div class="card"><span class="small">System Info</span><h2 class="cyan" id="infoCount">1</h2></div></div>
+  <div class="card" id="alertsList"></div>
+</section>
+
+<!-- MAP -->
+<section class="page" id="page-map">
+  <div class="page-head"><div><h1>🗺️ Water Source Network</h1><p>Click a monitoring source to inspect its latest readings.</p></div><button class="btn secondary" onclick="showToast('Source network refreshed')">↻ Refresh Sources</button></div>
+  <div class="two"><div class="map">
+    <button class="pin p1" onclick="selectSource('Source A','SAFE','7.2','310','2.4','26.4')">🟢 Source A</button>
+    <button class="pin p2" onclick="selectSource('Source B','WARNING','7.6','468','4.8','27.1')">🟡 Source B</button>
+    <button class="pin p3" onclick="selectSource('Source C','CRITICAL','8.2','610','8.6','29.2')">🔴 Source C</button>
+    <button class="pin p4" onclick="selectSource('Source D','SAFE','7.0','295','1.8','25.7')">🟢 Source D</button>
+  </div>
+  <div class="card"><div class="section-label">SELECTED SOURCE</div><h2 id="sourceName">Source A</h2><div style="height:12px"></div><ul class="list"><li>Status: <b id="sourceStatus" class="green">SAFE</b></li><li>pH: <b id="sourcePh">7.2</b></li><li>TDS: <b id="sourceTds">310 ppm</b></li><li>Turbidity: <b id="sourceTurb">2.4 NTU</b></li><li>Temperature: <b id="sourceTemp">26.4°C</b></li></ul></div></div>
+</section>
+
+<!-- MAINTENANCE -->
+<section class="page" id="page-maintenance">
+  <div class="page-head"><div><h1>🔧 Maintenance Center</h1><p>Track component health, service intervals and maintenance history.</p></div><button class="btn" onclick="logMaintenance()">＋ Log Maintenance</button></div>
+  <div class="grid5" id="maintenanceCards"></div>
+  <div style="height:14px"></div>
+  <div class="two"><div class="card"><div class="section-label">SERVICE SCHEDULE</div><div class="table-wrap"><table class="table"><thead><tr><th>Component</th><th>Next Service</th><th>Priority</th></tr></thead><tbody><tr><td>Carbon Filter</td><td>18 days</td><td class="yellow">Medium</td></tr><tr><td>UV Lamp</td><td>32 days</td><td class="green">Normal</td></tr><tr><td>RO Membrane</td><td>74 days</td><td class="green">Normal</td></tr><tr><td>Pump</td><td>46 days</td><td class="green">Normal</td></tr></tbody></table></div></div>
+  <div class="card"><div class="section-label">SYSTEM HEALTH</div><div class="status-line"><span>IoT Sensors</span><b class="green">ONLINE</b></div><div class="status-line"><span>AI Engine</span><b class="green">READY</b></div><div class="status-line"><span>Cloud Sync</span><b class="green">CONNECTED</b></div><div class="status-line"><span>Water Pump</span><b class="green">RUNNING</b></div><div class="status-line"><span>Purification</span><b class="green">READY</b></div></div></div>
+</section>
+
+<!-- SETTINGS -->
+<section class="page" id="page-settings">
+  <div class="page-head"><div><h1>⚙️ System Settings</h1><p>This is where you control the values, percentages, thresholds and demo behaviour shown throughout the website.</p></div><div class="actions"><button class="btn secondary" onclick="resetSettings()">Reset Defaults</button><button class="btn" onclick="saveSettings()">Save Configuration</button></div></div>
+  <div class="two">
+    <div class="card"><div class="section-label">LIVE SENSOR VALUES</div>
+      <div class="form-grid">
+        <div class="field"><label>pH</label><input id="sPh" type="number" min="0" max="14" step=".1" value="7.2"></div>
+        <div class="field"><label>TDS (ppm)</label><input id="sTds" type="number" min="0" value="310"></div>
+        <div class="field"><label>Turbidity (NTU)</label><input id="sTurb" type="number" min="0" step=".1" value="2.4"></div>
+        <div class="field"><label>Temperature (°C)</label><input id="sTemp" type="number" step=".1" value="26.4"></div>
+        <div class="field"><label>Dissolved Oxygen (mg/L)</label><input id="sDo" type="number" step=".1" value="6.8"></div>
+        <div class="field"><label>Water Level (%)</label><input id="sLevel" type="number" min="0" max="100" value="78"></div>
+        <div class="field"><label>Flow Rate (L/min)</label><input id="sFlow" type="number" min="0" step=".1" value="4.2"></div>
+        <div class="field"><label>Today's Usage (L)</label><input id="sUsage" type="number" min="0" value="1248"></div>
+      </div>
+    </div>
+    <div class="card"><div class="section-label">FILTER / EQUIPMENT HEALTH (%)</div><div id="filterSettings"></div></div>
+  </div>
+  <div style="height:14px"></div>
+  <div class="two">
+    <div class="card"><div class="section-label">WATER QUALITY THRESHOLDS</div>
+      <div class="setting-row"><div><b>Maximum TDS</b><div class="small">Warning threshold in ppm</div></div><input id="maxTds" type="number" value="500" class="range-val" style="width:90px"></div>
+      <div class="setting-row"><div><b>Maximum Turbidity</b><div class="small">Warning threshold in NTU</div></div><input id="maxTurb" type="number" step=".1" value="5" class="range-val" style="width:90px"></div>
+      <div class="setting-row"><div><b>Minimum pH</b><div class="small">Lower operating limit</div></div><input id="minPh" type="number" step=".1" value="6.5" class="range-val" style="width:90px"></div>
+      <div class="setting-row"><div><b>Maximum pH</b><div class="small">Upper operating limit</div></div><input id="maxPh" type="number" step=".1" value="8.5" class="range-val" style="width:90px"></div>
+    </div>
+    <div class="card"><div class="section-label">DEMO & AUTOMATION</div>
+      <div class="setting-row"><div><b>Auto Demo Updates</b><div class="small">Change simulated sensor values every 4 seconds.</div></div><button id="demoToggle" class="toggle on" onclick="toggleDemo()"></button></div>
+      <div class="setting-row"><div><b>Automatic Purification</b><div class="small">Trigger treatment recommendation on unsafe readings.</div></div><button id="autoPurToggle" class="toggle on" onclick="togglePurification()"></button></div>
+      <div class="setting-row"><div><b>Alert Notifications</b><div class="small">Show new alerts in the Alerts center.</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">💧 Smart Aqua World • AquIntel Command Center • Prototype / Demo Data • © 2026</footer>
+</main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const state={
+ data:{ph:7.2,tds:310,turb:2.4,temp:26.4,do:6.8,level:78,flow:4.2,usage:1248},
+ filters:{'Sediment Filter':82,'Carbon Filter':67,'RO Membrane':91,'UV Lamp':76,'Pump':94},
+ demo:true, autoPur:true,
+ thresholds:{maxTds:500,maxTurb:5,minPh:6.5,maxPh:8.5},
+ alerts:[
+  {type:'WARNING',title:'TDS trend detected',body:'TDS is increasing faster than the recent baseline.',time:'2 min ago'},
+  {type:'INFO',title:'Purification system ready',body:'All treatment stages are operational.',time:'8 min ago'}
+ ]
+};
+let charts={};
+
+function $(id){return document.getElementById(id)}
+function showToast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>t.style.display='none',2300)}
+
+function shakePage(target='page-'+location.hash.slice(1)){
+ const el=$(target)||document.querySelector('.page.active'); if(!el)return;
+ el.classList.remove('interaction-shake'); void el.offsetWidth; el.classList.add('interaction-shake');
+ setTimeout(()=>el.classList.remove('interaction-shake'),420);
+}
+function pulseCards(selector='.page.active .card'){
+ document.querySelectorAll(selector).forEach((el,i)=>{setTimeout(()=>{el.classList.remove('interaction-shake');void el.offsetWidth;el.classList.add('interaction-shake');setTimeout(()=>el.classList.remove('interaction-shake'),360)},i*22)});
+}
+function openPage(page){
+ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active','interaction-shake'));
+ document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+ $('page-'+page).classList.add('active');
+ const nav=document.querySelector(`[data-page="${page}"]`);if(nav)nav.classList.add('active');
+ const names={home:'Overview',dashboard:'Live Dashboard',ai:'AI Intelligence',purification:'Purification',history:'Historical Data',alerts:'Alerts',map:'Water Sources',maintenance:'Maintenance',settings:'System Settings'};
+ $('breadcrumb').textContent='Smart Aqua World / '+names[page];
+ history.replaceState(null,'','#'+page);
+ if(page==='purification')renderPurification();
+ if(page==='maintenance')renderMaintenance();
+ if(page==='alerts')renderAlerts();
+ if(page==='history')renderHistory();
+ if(page==='settings')loadSettingsUI();
+ window.scrollTo({top:0,behavior:'smooth'});
+ setTimeout(()=>{shakePage('page-'+page);},60);
+}
+
+document.querySelectorAll('.nav-item').forEach(n=>n.addEventListener('click',()=>openPage(n.dataset.page)));
+
+// Universal touch/click feedback for the existing website UI.
+// Touch/click cards, values, headers, rows, buttons, fields, stages, map items, etc.
+// No extra feature section is created; this only animates what is already on screen.
+document.addEventListener('pointerdown',e=>{
+ const raw=e.target;
+ const target=raw.closest(
+   '.nav-item,.feature-card,.stage,.metric,.pin,.alert,.btn,.icon-btn,.toggle,.search-result,.setting-row,'+
+   '.card,.chart-card,.hero-card,.grid-card,.pipeline,.table-wrap,.map,.page-head,.section-label,.field,.range-row,'+
+   '.live-pill,.system-mini,.brand,.footer,.topbar,.search-wrap,.page h1,.page h2,.page h3,.page p,.table tbody tr'
+ );
+ if(!target || target.closest('.ambient-bg')) return;
+
+ // Avoid animating the whole page when the tap is on tiny/technical children.
+ const fxTarget = target.matches('h1,h2,h3,p,.section-label') ? target : target;
+ fxTarget.classList.add('fx-target');
+ fxTarget.classList.remove('touch-shake','touch-glow');
+ void fxTarget.offsetWidth;
+ fxTarget.classList.add('touch-shake','touch-glow');
+
+ // Blink the item's own visible labels/text, just like the feature cards.
+ const titleNodes = fxTarget.matches('h1,h2,h3,p,.section-label')
+   ? [fxTarget]
+   : fxTarget.matches('input,select,button')
+     ? fxTarget.querySelectorAll('span,b,strong,.btn-label')
+     : fxTarget.querySelectorAll('h1,h2,h3,h4,b,strong,.section-label,.metric-label,.metric-value,.badge,.breadcrumb,.nav-item span');
+
+ if(fxTarget.matches('input,select')){
+   const field = fxTarget.closest('.field,.range-row,.setting-row');
+   if(field){
+     field.classList.remove('touch-glow');
+     void field.offsetWidth;
+     field.classList.add('touch-glow');
+   }
+ }
+
+ titleNodes.forEach(node=>{
+   node.classList.remove('touch-blink');
+   void node.offsetWidth;
+   node.classList.add('touch-blink');
+ });
+
+ clearTimeout(fxTarget._touchFxTimer);
+ fxTarget._touchFxTimer=setTimeout(()=>{
+   fxTarget.classList.remove('touch-shake','touch-glow','fx-target');
+   titleNodes.forEach(node=>node.classList.remove('touch-blink'));
+ },560);
+});
+
+window.addEventListener('hashchange',()=>{const p=location.hash.slice(1);if(document.getElementById('page-'+p))openPage(p)});
+if(location.hash.slice(1)&&document.getElementById('page-'+location.hash.slice(1)))openPage(location.hash.slice(1));
+
+function qualityScore(){
+ const d=state.data,t=state.thresholds;
+ let score=100;
+ score-=Math.min(25,Math.abs(d.ph-7.2)*9);
+ score-=Math.min(25,Math.max(0,(d.tds-t.maxTds*.45))*0.12);
+ score-=Math.min(30,Math.max(0,(d.turb-t.maxTurb*.25))*4);
+ score-=Math.min(10,Math.max(0,(6.5-d.do))*4);
+ return Math.max(0,Math.min(100,Math.round(score)));
+}
+function status(){
+ const d=state.data,t=state.thresholds;
+ if(d.tds>t.maxTds || d.turb>t.maxTurb || d.ph<t.minPh || d.ph>t.maxPh) return 'CRITICAL';
+ if(d.tds>t.maxTds*.85 || d.turb>t.maxTurb*.75 || d.ph<t.minPh+.3 || d.ph>t.maxPh-.3) return 'WARNING';
+ return 'SAFE';
+}
+function renderDashboard(){
+ const d=state.data;
+ $('v-ph').textContent=d.ph.toFixed(1);
+ $('v-tds').textContent=Math.round(d.tds)+' ppm';
+ $('v-turb').textContent=d.turb.toFixed(1)+' NTU';
+ $('v-temp').textContent=d.temp.toFixed(1)+' °C';
+ $('v-do').textContent=d.do.toFixed(1)+' mg/L';
+ $('v-level').textContent=Math.round(d.level)+'%';
+ $('v-flow').textContent=d.flow.toFixed(1)+' L/min';
+ $('v-usage').textContent=Math.round(d.usage).toLocaleString()+' L';
+ const s=qualityScore(), st=status();
+ $('dashScore').textContent=s;$('homeScore').textContent=s+' / 100';
+ $('dashScoreRing').style.background=`conic-gradient(var(--cyan) ${s}%,#173545 0)`;
+ $('dashStatus').textContent=st;$('homeStatus').textContent=st;
+ $('dashStatus').className='status-big '+(st==='SAFE'?'green':st==='WARNING'?'yellow':'red');
+ $('homeStatus').className='status-big '+(st==='SAFE'?'green':st==='WARNING'?'yellow':'red');
+ $('statusReason').textContent=st==='SAFE'?'All configured parameters are within the selected operating limits.':st==='WARNING'?'One or more parameters are approaching the configured limit.':'A configured limit has been exceeded. Review purification and alerts.';
+}
+function rand(base,spread){return base+(Math.random()-.5)*spread}
+function refreshData(){
+ if(state.demo){
+  state.data.ph=+rand(state.data.ph,.12).toFixed(1);
+  state.data.tds=Math.max(0,Math.round(rand(state.data.tds,18)));
+  state.data.turb=Math.max(0,+rand(state.data.turb,.45).toFixed(1));
+  state.data.temp=+rand(state.data.temp,.7).toFixed(1);
+  state.data.do=Math.max(0,+rand(state.data.do,.25).toFixed(1));
+  state.data.level=Math.max(0,Math.min(100,Math.round(rand(state.data.level,2))));
+  state.data.flow=Math.max(0,+rand(state.data.flow,.3).toFixed(1));
+  state.data.usage+=Math.round(Math.random()*3);
+ }
+ renderDashboard();updateCharts();updateAI();
+ document.querySelectorAll('#page-dashboard .metric').forEach((el,i)=>{setTimeout(()=>{el.classList.remove('updated');void el.offsetWidth;el.classList.add('updated')},i*35)});
+}
+function toggleDemo(){
+ state.demo=!state.demo;
+ $('demoText').textContent=state.demo?'ON':'OFF';
+ $('demoToggle')?.classList.toggle('on',state.demo);
+ showToast(state.demo?'Demo simulation enabled':'Demo simulation paused');
+}
+function chartSeries(key,n=18){
+ const base=state.data[key];
+ return Array.from({length:n},(_,i)=>+(base+(Math.sin(i/2)*((key==='tds')?8:0.12))+(Math.random()-.5)*(key==='tds'?18:key==='temp'?1:.35)).toFixed(2));
+}
+function makeChart(id,label,key,type='line'){
+ const c=$(id);if(!c)return null;
+ return new Chart(c,{type,data:{labels:Array.from({length:18},(_,i)=>`${18-i}m`),datasets:[{label,data:chartSeries(key),borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,.08)',fill:true,tension:.4,pointRadius:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#a9bfce'}}},scales:{x:{ticks:{color:'#688395'},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'#688395'},grid:{color:'rgba(255,255,255,.04)'}}}}});
+}
+function initCharts(){
+ charts.live=makeChart('liveChart','pH','ph');
+ charts.forecast=makeChart('forecastChart','Predicted Quality','ph');
+ charts.history=makeChart('historyChart','Quality Score','ph');
+ charts.usage=makeChart('usageChart','Water Usage','usage');
+}
+function changeChart(){
+ const key=$('chartMetric').value;
+ const labels={ph:'pH Trend',tds:'TDS Trend',turb:'Turbidity Trend',temp:'Temperature Trend',do:'Dissolved Oxygen Trend'};
+ $('chartTitle').textContent=labels[key];
+ charts.live.data.datasets[0].label=labels[key];charts.live.data.datasets[0].data=chartSeries(key);charts.live.update();
+ shakePage('page-dashboard'); document.querySelector('#page-dashboard .chart-box')?.parentElement?.classList.add('interaction-shake');
+ setTimeout(()=>document.querySelector('#page-dashboard .chart-box')?.parentElement?.classList.remove('interaction-shake'),380);
+}
+function updateCharts(){
+ if(charts.live){const key=$('chartMetric').value;charts.live.data.datasets[0].data=chartSeries(key);charts.live.update()}
+ if(charts.forecast){charts.forecast.data.datasets[0].data=Array.from({length:18},(_,i)=>Math.max(0,qualityScore()+Math.sin(i/2)*2+(Math.random()-.5)));charts.forecast.update()}
+}
+function updateAI(){
+ const st=status(),d=state.data,s=qualityScore();
+ $('aiRisk').textContent=st==='SAFE'?'LOW':st==='WARNING'?'MEDIUM':'HIGH';
+ $('aiRisk').className=st==='SAFE'?'green':st==='WARNING'?'yellow':'red';
+ $('aiConfidence').textContent=Math.max(75,Math.min(98,96-Math.abs(92-s)))+'%';
+ const anomalies=(d.tds>state.thresholds.maxTds?1:0)+(d.turb>state.thresholds.maxTurb?1:0)+(d.ph<state.thresholds.minPh||d.ph>state.thresholds.maxPh?1:0);
+ $('aiAnomaly').textContent=anomalies;
+ $('aiHeadline').textContent=st==='SAFE'?'Water quality is currently stable.':st==='WARNING'?'Water quality needs attention.':'Critical water-quality condition detected.';
+ $('aiBody').textContent=st==='SAFE'?'No critical anomaly detected. The AI engine is comparing live readings with configured limits and recent trends.':st==='WARNING'?'One or more parameters are approaching a configured limit. Increased monitoring is recommended.':'At least one configured safety limit has been exceeded. Review purification and inspect the source.';
+ $('insights').innerHTML=[
+  `${d.ph>=state.thresholds.minPh&&d.ph<=state.thresholds.maxPh?'✓':'⚠'} pH is ${d.ph>=state.thresholds.minPh&&d.ph<=state.thresholds.maxPh?'within':'outside'} configured range`,
+  `${d.tds<=state.thresholds.maxTds?'✓':'⚠'} TDS is ${d.tds<=state.thresholds.maxTds?'within':'above'} configured limit`,
+  `${d.turb<=state.thresholds.maxTurb?'✓':'⚠'} Turbidity is ${d.turb<=state.thresholds.maxTurb?'within':'above'} configured limit`,
+  `${state.autoPur?'✓':'○'} Automatic purification is ${state.autoPur?'enabled':'disabled'}`
+ ].map(x=>`<li>${x}</li>`).join('');
+}
+function runAI(){const box=document.querySelector('#page-ai .card');box?.classList.add('ai-scan');shakePage('page-ai');showToast('AI is analyzing current sensor data…');setTimeout(()=>{updateAI();box?.classList.remove('ai-scan');pulseCards('#page-ai .card');showToast('AI analysis completed');},900)}
+function togglePurification(){
+ state.autoPur=!state.autoPur;
+ $('purStatus').textContent=state.autoPur?'AUTO MODE ACTIVE':'MANUAL MODE';
+ $('purStatus').className='badge '+(state.autoPur?'green':'yellow');
+ $('autoPurToggle')?.classList.toggle('on',state.autoPur);
+ updateAI();showToast(state.autoPur?'Automatic purification enabled':'Automatic purification set to manual');
+}
+function renderPurification(){
+ $('filterCards').innerHTML=Object.entries(state.filters).map(([name,val])=>`<div class="card"><div class="section-label">${name}</div><h2>${val}%</h2><div class="progress"><i style="width:${val}%"></i></div><span class="small">${val>=75?'Healthy':val>=50?'Monitor':'Service Soon'}</span></div>`).join('');
+ $('purLog').innerHTML=[
+  ['14:32','UV','Sterilization cycle completed','green'],
+  ['14:29','Carbon','Flow normal','green'],
+  ['14:21','System','Automatic monitoring active','green'],
+  ['13:58','Final Check','Water quality verified','green']
+ ].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="${r[3]}">● OK</td></tr>`).join('');
+}
+function renderHistory(){
+ $('avgPh').textContent=(state.data.ph).toFixed(1);
+ $('avgTds').textContent=Math.round(state.data.tds+4)+' ppm';
+ $('avgTurb').textContent=(state.data.turb+.4).toFixed(1)+' NTU';
+ if(charts.history){charts.history.data.datasets[0].data=Array.from({length:18},()=>Math.max(60,qualityScore()+Math.random()*8-4));charts.history.update()}
+ if(charts.usage){charts.usage.data.datasets[0].data=Array.from({length:18},()=>Math.round(state.data.usage*(.7+Math.random()*.4)));charts.usage.update()}
+}
+function renderAlerts(){
+ const counts={CRITICAL:0,WARNING:0,INFO:0};
+ state.alerts.forEach(a=>counts[a.type]++);
+ $('criticalCount').textContent=counts.CRITICAL;$('warningCount').textContent=counts.WARNING;$('infoCount').textContent=counts.INFO;
+ $('alertCount').textContent=state.alerts.length;
+ $('alertsList').innerHTML=state.alerts.length?state.alerts.map((a,i)=>{
+  const cls=a.type==='CRITICAL'?'red':a.type==='WARNING'?'yellow':'green';
+  const icon=a.type==='CRITICAL'?'🔴':a.type==='WARNING'?'🟡':'🔵';
+  return `<div class="alert"><div class="alert-icon">${icon}</div><div><b class="${cls}">${a.type} — ${a.title}</b><p>${a.body}</p><span class="small">${a.time}</span></div></div>`
+ }).join(''):'<p class="small">No active alerts.</p>';
+}
+function simulateAlert(){
+ state.alerts.unshift({type:'CRITICAL',title:'Simulated turbidity anomaly',body:'A sudden increase has been detected. Inspect the source and purification pipeline.',time:'just now'});
+ renderAlerts();document.querySelector('#alertsList')?.classList.add('pulse-alert');setTimeout(()=>document.querySelector('#alertsList')?.classList.remove('pulse-alert'),2100);shakePage('page-alerts');showToast('New critical alert created');
+}
+function clearAlerts(){state.alerts=state.alerts.filter(a=>a.type==='CRITICAL');renderAlerts();showToast('Non-critical alerts cleared')}
+function selectSource(name,st,ph,tds,turb,temp){
+ $('sourceName').textContent=name;$('sourceStatus').textContent=st;$('sourceStatus').className=st==='SAFE'?'green':st==='WARNING'?'yellow':'red';
+ $('sourcePh').textContent=ph;$('sourceTds').textContent=tds+' ppm';$('sourceTurb').textContent=turb+' NTU';$('sourceTemp').textContent=temp+'°C';
+ const box=document.querySelector('#page-map .two'); if(box){box.classList.remove('interaction-shake');void box.offsetWidth;box.classList.add('interaction-shake');setTimeout(()=>box.classList.remove('interaction-shake'),360)}
+}
+function renderMaintenance(){
+ $('maintenanceCards').innerHTML=Object.entries(state.filters).map(([name,val])=>`<div class="card"><div class="section-label">${name}</div><h2>${val}%</h2><div class="progress"><i style="width:${val}%"></i></div><span class="${val<50?'red':val<70?'yellow':'green'} small">${val<50?'SERVICE NOW':val<70?'MONITOR':'HEALTHY'}</span></div>`).join('');
+}
+function logMaintenance(){showToast('Maintenance activity logged successfully')}
+function loadSettingsUI(){
+ const d=state.data,t=state.thresholds;
+ $('sPh').value=d.ph;$('sTds').value=d.tds;$('sTurb').value=d.turb;$('sTemp').value=d.temp;$('sDo').value=d.do;$('sLevel').value=d.level;$('sFlow').value=d.flow;$('sUsage').value=d.usage;
+ $('maxTds').value=t.maxTds;$('maxTurb').value=t.maxTurb;$('minPh').value=t.minPh;$('maxPh').value=t.maxPh;
+ $('filterSettings').innerHTML=Object.entries(state.filters).map(([name,val])=>`<div class="setting-row"><div><b>${name}</b><div class="small">Set health / remaining percentage</div></div><div class="range-row"><input type="range" min="0" max="100" value="${val}" data-filter="${name}" oninput="this.nextElementSibling.textContent=this.value+'%'"><span class="range-val">${val}%</span></div></div>`).join('');
+ document.querySelectorAll('[data-filter]').forEach(el=>el.addEventListener('change',()=>state.filters[el.dataset.filter]=+el.value));
+ $('demoToggle').classList.toggle('on',state.demo);$('autoPurToggle').classList.toggle('on',state.autoPur);
+}
+function saveSettings(){
+ state.data.ph=+$('sPh').value;state.data.tds=+$('sTds').value;state.data.turb=+$('sTurb').value;state.data.temp=+$('sTemp').value;state.data.do=+$('sDo').value;state.data.level=+$('sLevel').value;state.data.flow=+$('sFlow').value;state.data.usage=+$('sUsage').value;
+ state.thresholds.maxTds=+$('maxTds').value;state.thresholds.maxTurb=+$('maxTurb').value;state.thresholds.minPh=+$('minPh').value;state.thresholds.maxPh=+$('maxPh').value;
+ document.querySelectorAll('[data-filter]').forEach(el=>state.filters[el.dataset.filter]=+el.value);
+ renderDashboard();renderPurification();renderMaintenance();updateAI();showToast('Configuration saved and applied');
+}
+function resetSettings(){
+ state.data={ph:7.2,tds:310,turb:2.4,temp:26.4,do:6.8,level:78,flow:4.2,usage:1248};
+ state.filters={'Sediment Filter':82,'Carbon Filter':67,'RO Membrane':91,'UV Lamp':76,'Pump':94};
+ state.thresholds={maxTds:500,maxTurb:5,minPh:6.5,maxPh:8.5};
+ loadSettingsUI();renderDashboard();showToast('Default configuration restored');
+}
+setInterval(()=>{if(state.demo){refreshData()}},4000);
+
+const featureIndex=[
+ {id:'home',name:'Overview',icon:'🏠',hint:'Command center'},
+ {id:'dashboard',name:'Live Dashboard',icon:'📡',hint:'Sensors & live charts'},
+ {id:'ai',name:'AI Intelligence',icon:'🤖',hint:'Analysis & predictions'},
+ {id:'purification',name:'Purification',icon:'🧪',hint:'Filters & treatment'},
+ {id:'history',name:'Historical Data',icon:'📈',hint:'Trends & usage'},
+ {id:'alerts',name:'Alerts',icon:'🚨',hint:'Warnings & events'},
+ {id:'map',name:'Water Sources',icon:'🗺️',hint:'Source monitoring'},
+ {id:'maintenance',name:'Maintenance',icon:'🔧',hint:'Service & health'},
+ {id:'settings',name:'System Settings',icon:'⚙️',hint:'Configure sensors'}
+];
+function renderSearchResults(query){
+ const q=query.trim().toLowerCase(),box=$('searchResults'); if(!q){box.classList.remove('show');box.innerHTML='';return}
+ const matches=featureIndex.filter(x=>(x.name+' '+x.hint).toLowerCase().includes(q)).slice(0,6);
+ box.innerHTML=matches.length?matches.map(x=>`<button class="search-result" onclick="openSearchResult('${x.id}')"><span>${x.icon}</span><b>${x.name}</b><small>${x.hint}</small></button>`).join(''):'<div class="search-result"><span>🔎</span><b>No feature found</b></div>';
+ box.classList.add('show');
+}
+function openSearchResult(id){const input=$('globalSearch');input.value='';$('searchResults').classList.remove('show');openPage(id);setTimeout(()=>pulseCards('#page-'+id+' .card'),110);showToast('Opened '+featureIndex.find(x=>x.id===id).name);}
+$('globalSearch')?.addEventListener('input',e=>renderSearchResults(e.target.value));
+$('globalSearch')?.addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.trim().toLowerCase();const hit=featureIndex.find(x=>x.name.toLowerCase().includes(q)||x.id===q);if(hit)openSearchResult(hit.id);else shakePage();}});
+document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))$('searchResults')?.classList.remove('show')});
+
+initCharts();renderDashboard();renderPurification();renderMaintenance();renderAlerts();updateAI();loadSettingsUI();
+</script>
+</body>
+</html>
